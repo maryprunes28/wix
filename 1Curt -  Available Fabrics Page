@@ -1,0 +1,63 @@
+import wixData from 'wix-data';
+import wixWindow from 'wix-window';
+
+$w.onReady(function () {
+
+    $w('#repeater1').hide();
+    
+    $w('#ddsupplier').onChange(() => clearDropdownsAndText('ddsupplier'));
+    $w('#ddwidthvar').onChange(() => clearDropdownsAndText('ddwidthvar'));
+    $w('#ddcollection').onChange(() => clearDropdownsAndText('ddcollection'));
+    $w('#ddcolour').onChange(() => clearDropdownsAndText('ddcolour'));
+    $w('#ddwidth').onChange(() => clearDropdownsAndText('ddwidth'));
+
+    $w("#repeater1").onItemReady(($w, itemData, index) => {
+        const companyName = $w("#repeater1").data[index].company;
+        const ownerIdx = itemData.ownerId; 
+        const ownerEmail = itemData.email; 
+        const ownerPhone = itemData.contactNumber; 
+        const ownerAddress = itemData.coAddress; 
+        const ownerNick = itemData.nickname; 
+
+        $w("#button1").onClick(() => {
+            console.log('Owner ID:', ownerIdx);
+            console.log('Company Name:', companyName);
+
+            const query = wixData.query("Members/FullData").eq('_id', ownerIdx);
+            console.log('Query:', query); // Log the query
+
+           wixWindow.openLightbox("Owner Details", {
+                            memberId: ownerIdx,
+                            memberEmail: ownerEmail,
+                            memberPhone: ownerPhone,
+                            memberAddress: ownerAddress,
+                            memberNick: ownerNick,
+                            memberCompany: companyName
+                            
+                        });
+        });
+    });
+});
+
+
+function clearDropdownsAndText(changedDropdown) {
+    const dropdowns = ['ddsupplier', 'ddwidthvar', 'ddcollection','ddcolour', 'ddwidth'];
+
+    const changedIndex = dropdowns.indexOf(changedDropdown);
+
+    for (let i = changedIndex + 1; i < dropdowns.length; i++) 
+    {
+        $w(`#${dropdowns[i]}`).value = '';
+       
+        }
+
+    if (changedIndex < 3)
+        {
+            $w('#repeater1').hide();
+        }
+    else
+        {
+            $w('#repeater1').show();
+        }
+        
+    }
