@@ -1,0 +1,234 @@
+import wixData from 'wix-data';
+import { currentMember } from 'wix-members';
+import wixWindow from 'wix-window';
+import wixUsers from 'wix-users';
+
+$w.onReady(function ()
+
+    {
+        const currentUserID = wixUsers.currentUser.id;
+
+        // Filter the dataset to retrieve only data associated with the current user
+        $w('#dataset6').setFilter(wixData.filter()
+            .eq('ownerId', currentUserID) // Replace 'ownerId' with the appropriate field name
+        );
+
+        currentMember.getMember()
+            .then(results => {
+                const member = results;
+                console.log('MEMBER DATA');
+                console.log(member);
+                const member_id = String(member._id);
+                const member_loginemail = String(member.loginEmail);
+
+                wixData.query("Members/FullData")
+                    .eq("_id", member_id)
+                    .find()
+                    .then((results) => {
+                        // Handle the results - iterate through 'results.items'
+                        results.items.forEach((item) => {
+                            var fulldata_company = item.customfields_contact_company;
+                            var fulldata_phone = item.phone;
+                            var fulldata_nickname = item.nickname;
+
+                            console.log('Within Chunk ' + fulldata_company);
+                            console.log('Within Chunk ' + fulldata_phone);
+                            console.log('Within Chunk ' + fulldata_nickname);
+
+                            console.log('After Chunk ' + fulldata_company);
+                            console.log('After Chunk ' + fulldata_phone);
+                            console.log('After Chunk ' + fulldata_nickname);
+
+                            $w('#ddsupplier').onChange(() => clearDropdownsAndText('ddsupplier'));
+                            $w('#ddwidthvar').onChange(() => clearDropdownsAndText('ddwidthvar'));
+                            $w('#ddcollection').onChange(() => clearDropdownsAndText('ddcollection'));
+                            $w('#ddtype').onChange(() => clearDropdownsAndText('ddtype'));
+                            $w('#ddcolour').onChange(() => clearDropdownsAndText('ddcolour'));
+                            $w('#ddwidth').onChange(() => clearDropdownsAndText('ddwidth'));
+                            $w('#dataset5').onCurrentIndexChanged(() => {
+                                let itemsku = $w("#dataset5").getCurrentItem();
+                                let ddsupplierValue = $w('#ddsupplier').value;
+                                let ddwidthvarvalue = $w('#ddwidthvar').value;
+                                let ddcollectionValue = $w('#ddcollection').value;
+                                let ddtypeValue = $w('#ddtype').value;
+                                let ddcolourValue = $w('#ddcolour').value;
+                                let ddwidthValue = $w('#ddwidth').value;
+
+                                if ((ddsupplierValue) && (ddwidthvarvalue) && (ddcollectionValue) && (ddtypeValue) && (ddcolourValue) && (ddwidthValue)) {
+                                    $w('#textsku').text = itemsku.sku;
+                                    $w('#txtcolorcode').text = itemsku.colourCode;
+                                    $w('#txtcollectcode').text = itemsku.collectionCode;
+                                    $w('#btnadd').enable();
+                                } else {
+                                    $w('#textsku').text = '';
+                                    $w('#txtcolorcode').text = '';
+                                    $w('#txtcollectcode').text = '';
+                                    $w('#btnadd').disable();
+                                }
+                            });
+
+                            $w('#btnadd').onClick(() => {
+                                let itemsku = $w("#textsku").text;
+                                let ddsupplierValue = $w('#ddsupplier').value;
+                                let ddwidthvarvalue = $w('#ddwidthvar').value;
+                                let ddcollectionValue = $w('#ddcollection').value;
+                                let ddtypeValue = $w('#ddtype').value;
+                                let ddcolourValue = $w('#ddcolour').value;
+                                let ddwidthValue = $w('#ddwidth').value;
+                                let inpbal = $w('#inpbalance').value;
+
+                                try {
+
+                                    let toInsert = {
+                                        "supplier": ddsupplierValue,
+                                        "sku": itemsku,
+                                        "collectionCode": $w('#txtcollectcode').text,
+                                        "colourCode": $w('#txtcolorcode').text,
+                                        "fabricWidth": Number(ddwidthValue),
+                                        "collection": ddcollectionValue,
+                                        "type": ddtypeValue,
+                                        "colour": ddcolourValue,
+                                        "availableRolls": Number(inpbal),
+                                        "widthVariety": ddwidthvarvalue,
+                                        "contactNumber": fulldata_phone,
+                                        "company": fulldata_company,
+                                        "email": member_loginemail,
+                                        "nickname": fulldata_nickname,
+                                        "ownerId": member_id
+                                    };
+
+                                    wixData.query("Owned_Fabrics")
+                                        .eq("sku", itemsku)
+                                        .eq("ownerId", member_id)
+                                        .find()
+                                        .then((result) => {
+                                            if (result.items.length > 0) {
+                                                // If item already exists, retrieve and use availableRolls
+                                                const existingItem = result.items[0];
+                                                const existingAvailableRolls = existingItem.availableRolls;
+                                                console.log('Existing availableRolls:', existingAvailableRolls);
+
+                                                const updatedAvailableRolls = Number(existingAvailableRolls) + Number(inpbal);
+                                                let toUpdate = {
+                                                    "_id": existingItem._id,
+                                                    "availableRolls": updatedAvailableRolls
+                                                };
+
+												wixData.get("Owned_Fabrics", existingItem._id)
+													.then((item) => {
+														if (item) {
+															item.availableRolls = updatedAvailableRolls; // Update the availableRolls field
+															return wixData.update("Owned_Fabrics", item);
+														} else {
+															console.error('Item not found');
+															return null;
+														}
+													})
+													.then((updateResult) => {
+														if (updateResult) {
+															console.log('Record updated:', updateResult);
+															resetDropdowns();
+															// Other actions after successful update
+															$w('#txtaddnotif').show();
+															$w('#txtaddnotif').text = "Existing SKU " + itemsku + " has been updated to " + updatedAvailableRolls;
+															setTimeout(function delay() {
+																let fadeOptions = { "duration": 1000 };
+																$w("#txtaddnotif").hide("fade", fadeOptions);
+															}, 3000);
+															$w('#dataset6').refresh();
+														}
+													})
+													.catch((updateError) => {
+														console.error('Error updating record:', updateError);
+													});
+
+												/*let item = wixData.get("Owned_Fabrics", existingItem._id);    
+												console.log ("Item");
+												console.log(item);										
+												
+
+                                                wixData.update("Owned_Fabrics", toUpdate)
+                                                    .then((updateResult) => {
+                                                        console.log('Record updated:', updateResult);
+                                                        resetDropdowns();
+                                                        $w('#txtaddnotif').show();
+                                                        $w('#txtaddnotif').text = "Existing SKU " + itemsku + " has been updated to " + updatedAvailableRolls;
+                                                        setTimeout(function delay() {
+                                                            let fadeOptions = { "duration": 1000 };
+                                                            $w("#txtaddnotif").hide("fade", fadeOptions);
+                                                        }, 3000);
+                                                        $w('#dataset6').refresh();
+
+                                                    })
+                                                    .catch((updateError) => {
+                                                        console.error('Error updating record:', updateError);
+                                                    });*/
+
+                                            } else {
+                                                // If item doesn't exist, proceed with insertion
+                                                wixData.insert("Owned_Fabrics", toInsert)
+                                                    .then((insertionResult) => {
+                                                        console.log(`Data saved to Owned_Fabrics:`, insertionResult);
+                                                        resetDropdowns();
+                                                        $w('#txtaddnotif').show();
+                                                        $w('#txtaddnotif').text = "Addition of available roll/s successful.";
+                                                        setTimeout(function delay() {
+                                                            let fadeOptions = { "duration": 1000 };
+                                                            $w("#txtaddnotif").hide("fade", fadeOptions);
+                                                        }, 3000);
+														$w('#dataset6').refresh();
+
+                                                    })
+                                                    .catch((insertionError) => {
+                                                        console.error('Error saving data to Owned_Fabrics:', insertionError);
+                                                    });
+                                            }
+                                        })
+                                        .catch((queryError) => {
+                                            console.error('Error querying Owned_Fabrics:', queryError);
+                                        });
+
+                                } catch (insertionError) {
+                                    console.error('Error saving data to AnotherTable:', insertionError);
+                                }
+
+                            });
+
+                        });
+                    })
+                    .catch((error) => {
+                        // Handle errors
+                        console.error(error);
+                    });
+
+            });
+
+    }
+
+);
+
+function resetDropdowns() {
+    const dropdowns = ['ddsupplier', 'ddwidthvar', 'ddcollection', 'ddtype', 'ddcolour', 'ddwidth'];
+
+    dropdowns.forEach((dropdownId) => {
+        $w(`#${dropdownId}`).value = ''; // Reset dropdown value to empty
+    });
+
+    // Additionally, if you want to clear the text in certain elements, you can do so here
+    $w('#textsku').text = '';
+    $w('#txtcolorcode').text = '';
+    $w('#txtcollectcode').text = '';
+    $w('#btnadd').disable();
+    $w('#inpbalance').value = '1';
+}
+
+function clearDropdownsAndText(changedDropdown) {
+    const dropdowns = ['ddsupplier', 'ddwidthvar', 'ddcollection', 'ddtype', 'ddcolour', 'ddwidth'];
+
+    const changedIndex = dropdowns.indexOf(changedDropdown);
+
+    for (let i = changedIndex + 1; i < dropdowns.length; i++) {
+        $w(`#${dropdowns[i]}`).value = '';
+    }
+
+}
