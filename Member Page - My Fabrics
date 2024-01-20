@@ -1,0 +1,341 @@
+import wixData from 'wix-data';
+import { currentMember } from 'wix-members';
+import wixWindow from 'wix-window';
+import wixUsers from 'wix-users';
+
+$w.onReady(function ()
+
+    {
+        $w('#btnadd').disable();
+        initTexts();
+        
+        /*const ptexts = ['txtcollectcode','txtcolorcode','txtwidth','txtwidthvar','txttag','textsku'];
+        for (let y = 0; y < ptexts.length; y++) 
+        {
+            const currenttextId = ptexts[y];
+            if (currenttextId != '')
+                {
+                const currentTextbox = $w(`#${currenttextId}`);
+                console.log(currentTextbox.id);     
+                currentTextbox.hide();          
+                }
+        }*/
+        const currentUserID = wixUsers.currentUser.id;
+
+        // Filter the dataset to retrieve only data associated with the current user
+        $w('#dataset6').setFilter(wixData.filter()
+            .eq('ownerId', currentUserID) // Replace 'ownerId' with the appropriate field name
+        );
+
+        currentMember.getMember()
+            .then(results => {
+                const member = results;
+                console.log('MEMBER DATA');
+                console.log(member);
+                const member_id = String(member._id);
+                const member_loginemail = String(member.loginEmail);
+                //const member_loginemail = String(member.loginEmail);
+
+                wixData.query("Members/FullData")                
+                    .eq("_id", member_id)
+                    .find()
+                    .then((results) => {
+                        console.log("RESULTS");
+                        console.log(results);
+                        // Handle the results - iterate through 'results.items'
+                        results.items.forEach((item) => {
+                            console.log (item);
+                            const fulldata_company = item.customfields_contact_company;
+                            const fulldata_phone = item.phone;
+                            const fulldata_nickname = item.nickname;
+                            const fulldata_suburb = item.custom_suburb;
+                            const fulldata_coaddress = item['custom_company-address'];
+                     
+                            
+                            //var fulldata_address = item.custom_company-address;
+
+                            console.log('Within Chunk ' + fulldata_company);
+                            console.log('Within Chunk ' + fulldata_phone);
+                            console.log('Within Chunk ' + fulldata_nickname);
+
+                            console.log('After Chunk ' + fulldata_company);
+                            console.log('After Chunk ' + fulldata_phone);
+                            console.log('After Chunk ' + fulldata_nickname);
+                            console.log('After Chunk ' + fulldata_coaddress);
+
+                            $w('#ddsupplier').onChange(() => clearDropdownsAndText('ddsupplier',member_id));                           
+                            $w('#ddcollection').onChange(() => clearDropdownsAndText('ddcollection',member_id));
+                            $w('#ddtype').onChange(() => clearDropdownsAndText('ddtype',member_id));
+                            $w('#ddcolour').onChange(() => clearDropdownsAndText('ddcolour',member_id));    
+                            $w('#ddwidth').onChange(() => clearDropdownsAndText('ddwidth',member_id));                         
+                            
+
+                            $w('#btnadd').onClick(() => {
+
+                                var spbsku = $w("#textspbsku").text;
+                                var spb_memberid ='ec95694c-a0b8-415d-a4d1-7e9bd485a6e6';
+                                let itemsku = $w("#textsku").text;
+                                let ddsupplierValue = $w('#ddsupplier').value;
+                                let widthvarvalue = $w('#txtwidthvar').text;
+                                let widthvalue = $w('#txtwidth').text;
+                                let ddwidthvalue = $w('#ddwidth').value;
+                                let ddcollectionValue = $w('#ddcollection').value;
+                                let ddtypeValue = $w('#ddtype').value;
+                                let ddcolourValue = $w('#ddcolour').value;                               
+                                let inpbal = $w('#inpbalance').value;
+                                var inptag=$w('#txttag').text;
+                               /* if($w('#ddcollection').value != '')
+                                    {
+                                        var currentItem6a = $w('#dataset3').getCurrentItem();
+                                            if (currentItem6a) {
+                                                const defaulttag = currentItem6a.tag;   
+                                                inptag = defaulttag;                                                                                    
+                                            }    
+                                    } */
+
+                                try {
+
+                                    let toInsert = {
+                                        "supplier": ddsupplierValue,
+                                        "sku": itemsku,
+                                        "collectionCode": $w('#txtcollectcode').text,
+                                        "colourCode": $w('#txtcolorcode').text,
+                                        "fabricWidth": Number(ddwidthvalue),
+                                        "collection": ddcollectionValue,
+                                        "type": ddtypeValue,
+                                        "colour": ddcolourValue,
+                                        "availableRolls": Number(inpbal),
+                                        "widthVariety": widthvarvalue,
+                                        "contactNumber": fulldata_phone,
+                                        "company": fulldata_company,
+                                        "email": member_loginemail,
+                                        "nickname": fulldata_nickname,
+                                        "coAddress": fulldata_coaddress,
+                                        "ownerId": member_id,
+                                        "suburb":fulldata_suburb,
+                                        "tag": inptag
+
+                                    };
+
+                                    if (member_id == spb_memberid)
+                                    {
+                                        toInsert.spbSku = spbsku;
+                                    }
+
+                                    wixData.query("Owned_Fabrics")
+                                        .eq("sku", itemsku)
+                                        .eq("ownerId", member_id)
+                                        .find()
+                                        .then((result) => {
+                                            if (result.items.length > 0) {
+                                                // If item already exists, retrieve and use availableRolls
+                                                const existingItem = result.items[0];
+                                                const existingAvailableRolls = existingItem.availableRolls;
+                                                console.log('Existing availableRolls:', existingAvailableRolls);
+
+                                                const updatedAvailableRolls = Number(existingAvailableRolls) + Number(inpbal);
+                                                let toUpdate = {
+                                                    "_id": existingItem._id,
+                                                    "availableRolls": updatedAvailableRolls
+                                                };
+
+												wixData.get("Owned_Fabrics", existingItem._id)
+													.then((item) => {
+														if (item) {
+															item.availableRolls = updatedAvailableRolls; // Update the availableRolls field
+															return wixData.update("Owned_Fabrics", item);
+														} else {
+															console.error('Item not found');
+															return null;
+														}
+													})
+													.then((updateResult) => {
+														if (updateResult) {
+															console.log('Record updated:', updateResult);
+															resetDropdowns();
+															// Other actions after successful update
+															$w('#txtaddnotif').show();
+															$w('#txtaddnotif').text = "Existing SKU " + itemsku + " has been updated to " + updatedAvailableRolls;
+															setTimeout(function delay() {
+																let fadeOptions = { "duration": 1000 };
+																$w("#txtaddnotif").hide("fade", fadeOptions);
+															}, 3000);
+															$w('#dataset6').refresh();
+														}
+													})
+													.catch((updateError) => {
+														console.error('Error updating record:', updateError);
+													});
+
+												
+
+                                            } else {
+                                                // If item doesn't exist, proceed with insertion
+                                                wixData.insert("Owned_Fabrics", toInsert)
+                                                    .then((insertionResult) => {
+                                                        console.log(`Data saved to Owned_Fabrics:`, insertionResult);
+                                                        resetDropdowns();
+                                                        $w('#txtaddnotif').show();
+                                                        $w('#txtaddnotif').text = "Addition of available roll/s successful.";
+                                                        setTimeout(function delay() {
+                                                            let fadeOptions = { "duration": 1000 };
+                                                            $w("#txtaddnotif").hide("fade", fadeOptions);
+                                                        }, 3000);
+														$w('#dataset6').refresh();
+
+                                                    })
+                                                    .catch((insertionError) => {
+                                                        console.error('Error saving data to Owned_Fabrics:', insertionError);
+                                                    });
+                                            }
+                                        })
+                                        .catch((queryError) => {
+                                            console.error('Error querying Owned_Fabrics:', queryError);
+                                        });
+
+                                } catch (insertionError) {
+                                    console.error('Error saving data to AnotherTable:', insertionError);
+                                }
+
+                            });
+
+                        });
+                    })
+                    .catch((error) => {                        
+                        console.error(error);
+                    });
+
+			$w("#repownedlist").forEachItem(($item, itemData) => {
+        const inputRolls = $item("#inputrolls");
+
+        inputRolls.onBlur(() => {
+            const newRollsValue = inputRolls.value;
+            const currentItemID = itemData._id; // Assuming '_id' is the unique identifier
+            
+            // Fetch the current item's data from the collection
+            wixData.get("Owned_Fabrics", currentItemID)
+                .then((result) => {
+                    if (result) {
+                        // Modify the specific field and update the entire record
+                        result.availableRolls = Number(newRollsValue);
+                        return wixData.update("Owned_Fabrics", result);
+                    } else {
+                        console.error("Item not found");
+                    }
+                })
+                .then(() => {
+                    console.log("Item has been updated");
+                })
+                .catch((err) => {
+                    console.error("Error updating item", err);
+                });
+        });
+    });
+	
+	//
+            });
+
+    }
+
+);
+
+function resetDropdowns() {
+
+    console.log('resetDropdowns');
+    const dropdowns = ['ddsupplier', 'ddtype', 'ddcollection', 'ddcolour', 'ddwidth'];
+
+    dropdowns.forEach((dropdownId) => {
+        $w(`#${dropdownId}`).value = ''; // Reset dropdown value to empty
+    });
+
+    initTexts();
+    $w('#btnadd').disable();
+    $w('#inpbalance').value = '1';
+}
+
+function clearDropdownsAndText(changedDropdown,user) {
+    console.log('clearDropdownsAndText with param of ', changedDropdown);
+    
+    const dropdowns =  ['ddsupplier', 'ddtype', 'ddcollection', 'ddcolour', 'ddwidth'];
+    const texts = ['txtcollectcode','txtcolorcode','txtwidth','txtwidthvar','txttag','textsku' , 'textspbsku' , 'textspblabel'];
+    const changedIndex = dropdowns.indexOf(changedDropdown);
+
+    if (changedIndex <=2) 
+    {        
+        for (let i = changedIndex + 1; i < dropdowns.length; i++) 
+        {
+            $w(`#${dropdowns[i]}`).value = '';
+        }
+       
+        $w('#btnadd').disable();
+        initTexts();
+    }
+    if (changedIndex == 2)
+    {
+              
+        $w('#txtcollectcode').show();                
+        $w('#txttag').show();
+        $w('#btnadd').disable();
+       
+    }
+    else if (changedIndex == 3)
+    {
+              
+        $w('#txtcolorcode').show();
+        $w('#txtcollectcode').show();
+        $w('#txttag').show();
+        
+        $w('#btnadd').disable();
+    }
+     else if (changedIndex == 4)
+    {
+        
+       
+        let ddsupplierValue = $w('#ddsupplier').value;       
+        let ddcollectionValue = $w('#ddcollection').value;
+        let ddwidthValue = $w('#ddwidth').value;
+        let ddcolorValue = $w('#ddcolour').value;       
+      
+         $w('#txtwidth').text =  String($w('#ddwidth').value);
+        if ((ddsupplierValue) && (ddcollectionValue) && (ddcolorValue) && (ddwidthValue)) 
+        {           
+            $w('#btnadd').enable();
+            $w('#txttag').show();
+            $w('#txtcolorcode').show();
+            $w('#txtcollectcode').show();
+            $w('#txtwidth').show();
+            $w('#txtwidthvar').show();
+            $w('#textsku').show();
+            $w('#txttag').show();
+            if(user == 'ec95694c-a0b8-415d-a4d1-7e9bd485a6e6')
+            {
+               $w('#textspbsku').show();
+               $w('#textspblabel').show();
+               
+            }
+
+            
+        } 
+        else
+        {
+            initTexts();
+        }
+        
+    }    
+  
+
+}
+function initTexts()
+{
+    const ptexts = ['txtcollectcode','txtcolorcode','txtwidth','txtwidthvar','txttag','textsku','textspbsku','textspblabel'];
+        for (let y = 0; y < ptexts.length; y++) 
+        {
+            const currenttextId = ptexts[y];
+            if (currenttextId != '')
+                {
+                const currentTextbox = $w(`#${currenttextId}`);
+                console.log(currentTextbox.id);     
+                currentTextbox.hide();          
+                }
+        }
+}
