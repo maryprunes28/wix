@@ -1,0 +1,227 @@
+in wixcode, i have this code in my admin page, within the page, i have a dataset and a repeater, the dataset comes with a filter "status it not Active" hance the repeater only shows items that are not active, i have button within each item that gives me the option to "Update" the Item, when an item is updated, the status is changed to "Active", despite the "Dataset defaulted with a filter Status is not active", nothing happens after i updated an item, im expecting the dataset to refresh, repeater to refresh and i should no longer be able to see the "item" due to its status already changed.
+This is my wixcode 
+
+import wixData from 'wix-data';
+import wixUsers from 'wix-users';
+import { myApproveByEmailFunction } from 'backend/members';
+import wixWindow from 'wix-window';
+
+$w.onReady(function () {
+  const dataset = $w('#datasetprivatemember');
+  const repeater = $w('#repeater1');
+  
+  repeater.onItemReady(($item, itemData, index) => {
+    const firstName = itemData.firstName || '';
+    const lastName = itemData.lastName || '';
+    const emails = itemData.loginEmail || 'Not Provided';
+    let phone = itemData.mainPhone ? itemData.mainPhone.toString() : 'Not Provided';
+
+    const fullName = `${firstName} ${lastName}`;
+    $item('#txtFullName').text = fullName;
+    $item('#txtEmail').text = emails.toString(); 
+    $item('#txtPhone').text = phone; 
+
+    let comp1Promise = wixData.query("Members/FullData")
+      .eq("_id", itemData._id)
+      .find();
+
+    let comp2Promise = wixData.query("CompanyMember")
+      .eq("memberId", itemData._id)
+      .find();
+
+    Promise.all([comp1Promise, comp2Promise]).then((results) => {
+      let comp1Result = results[0];
+      let comp2Result = results[1];
+
+      let comp1 = "";
+      let comp2 = "";
+
+      // Query to populate the dropdown
+      wixData.query("Company")
+        .ne("companyCode", "")  // Exclude empty companyCode
+        .ne("companyCode", null)  // Exclude null companyCode
+        .ascending("companyCode")  // Sort by companyCode
+        .limit(200)  // Adjust limit as needed
+        .find()
+        .then((companyResult) => {
+          let dropdownOptions = [];
+          companyResult.items.forEach((rec) => {
+            let companyx = rec.company || '';
+            let companyCode = rec.companyCode ? rec.companyCode.toUpperCase() : '';
+            let optionLabel = `${companyCode} - ${companyx}`;
+            dropdownOptions.push({
+              label: optionLabel,
+              value: rec._id // Unique value for dropdown
+            });
+          });
+          $item('#combocomp').options = dropdownOptions;
+        })
+        .catch((err) => {
+          console.error("Error querying Company collection:", err);
+        });
+
+      // Handle comp1Result
+      if (comp1Result.items.length > 0) {
+        let companyNamef = comp1Result.items[0].customfields_contact_company || '';
+        let appl_status = comp1Result.items[0].status || '';
+        $item('#txtFullName').text += ` (Registered under Company : ${companyNamef})`;
+        $item('#txtstatus').text = appl_status;
+        
+        comp1 = companyNamef;
+      } else {
+        $item('#txtFullName').text += ' (N/A)';
+        
+      }
+
+      // Handle comp2Result
+      if (comp2Result.items.length > 0) {
+        $item('#txtcmid').text = comp2Result.items[0]._id;
+        const companyName = comp2Result.items[0].companyName || '';
+        let companyCode = comp2Result.items[0].companyCode || '';
+        companyCode = companyCode.toUpperCase();
+        $item('#txtCompany').text = `Viewing Jobs for : ${companyName} (${companyCode})`;
+               comp2 = companyName;
+      } else {
+        $item('#txtCompany').text = 'Viewing Jobs for : N/A';
+          }
+
+     
+
+      // Handle PENDING status
+      if (comp1Result.items[0].status === 'PENDING') {
+        $item('#btnapprove').enable();
+        $item('#btnedit').enable();
+        
+      }
+
+      // Handle approve button click
+      $item('#btncancel').onClick(() => {
+        $item('#combocomp').hide();  // Hide dropdown after save
+        $item('#btncancel').hide();  // Hide button after save
+        $item('#btnedit').enable();
+        $item('#btnapprove').enable();
+        $item('#btnsave').hide(); 
+       
+      });
+      // Handle approve button click
+      $item('#btnapprove').onClick(() => {
+        if (comp1Result.items[0].status === 'PENDING') {
+          const loginEmail = Array.isArray(itemData.loginEmail) ? itemData.loginEmail[0] : itemData.loginEmail;
+          myApproveByEmailFunction(loginEmail)
+            .then((result) => {
+              if (result.approved) {
+                console.log('Member approved successfully');
+                wixWindow.openLightbox("AutoNotification"," Member approved successfully");                    
+                //$w("#datasetprivatemember").refresh();
+                $w("#datasetprivatemember").setFilter(wixData.filter());  // Clear any existing filters
+  $w("#datasetprivatemember").refresh()  // Force refresh with no filters
+  .then(() => {
+   $w("#datasetprivatemember").setFilter(wixData.filter().ne('status', 'ACTIVE'));  // Reapply your desired filters
+    return   $w("#datasetprivatemember").refresh();  // Refresh again with filters applied
+  })
+  .then(() => {
+    console.log('Dataset refreshed and filter reapplied');
+  })
+  .catch((err) => {
+    console.error('Error refreshing dataset:', err);
+  });
+
+
+              } else {
+                console.error("Error approving member ELSE: " + result.stringify);
+              }
+            })
+            .catch((error) => {
+              console.error("Error approving member CATCH:", JSON.stringify(error));
+            });
+        }
+      });
+
+      // Handle save button click
+      $item('#btnsave').onClick(() => {
+        wixData.query("Company")
+          .eq("_id", $item('#combocomp').value)
+          .limit(1)
+          .find()
+          .then((companytoadd) => {
+            let xzohoCompanyId = companytoadd.items[0].zohoId;
+            let xcompanyId = companytoadd.items[0]._id;
+            let xcompanyName = companytoadd.items[0].company;
+            let xcompanyCode = companytoadd.items[0].companyCode;
+            let xemail = emails.toString();
+            let xfullName = fullName;
+
+            if (comp2Result.items.length > 0) {
+              let toUpdate = {
+                _id: $item('#txtcmid').text,
+                memberId: itemData._id,
+                zohoCompanyId: xzohoCompanyId,
+                companyId: xcompanyId,
+                email: xemail,
+                fullName: xfullName,
+                companyName: xcompanyName,
+                companyCode: xcompanyCode
+              };
+
+              wixData.update("CompanyMember", toUpdate)
+                .then((results) => {                  
+                  console.log("Record updated successfully:", results);
+                  // Update UI with the new data                  
+                  wixWindow.openLightbox("AutoNotification", "Record updated successfully");             
+                  $item('#txtCompany').text = `Viewing Jobs for : ${xcompanyName} (${xcompanyCode.toUpperCase()})`;
+                  $item('#combocomp').hide();  // Hide dropdown after save
+                  $item('#btncancel').hide();  // Hide button after save
+                  //$item('#btnsave').disable();  // Disable save button after save
+                  $item('#btnsave').hide();  // Disable save button after save
+                  $item('#btnapprove').enable();  // Hide button after save
+                  $item('#btnedit').enable();  // Disable save button after save
+                
+                })
+                .catch((err) => {
+                  console.error("Error updating record:", err);
+                });
+            } else {
+              wixData.insert("CompanyMember", {
+                memberId: itemData._id,
+                zohoCompanyId: xzohoCompanyId,
+                companyId: xcompanyId,
+                email: xemail,
+                fullName: xfullName,
+                companyName: xcompanyName,
+                companyCode: xcompanyCode
+              })
+              .then((result) => {                
+                console.log("Record saved successfully:", result);
+            // Update UI with the new data
+              $item('#txtCompany').text = `Viewing Jobs for : ${xcompanyName} (${xcompanyCode.toUpperCase()})`;
+              $item('#combocomp').hide();  // Hide dropdown after save
+              $item('#btncancel').hide();  // Hide button after save
+              $item('#btnsave').disable();  // Disable save button after save
+          
+              })
+              .catch((error) => {
+                console.error("Error saving record:", error);
+              });
+            }
+          })
+          .catch((err) => {
+            console.error("Error querying Company collection:", err);
+          });
+      });
+
+      // Handle edit button click
+       $item('#btnedit').onClick(() => {
+        $item('#btnapprove').disable();
+        $item('#btnedit').disable();
+        $item('#btnsave').show();
+        $item('#btnsave').enable();
+        $item('#combocomp').show();
+        $item('#btncancel').show(); 
+        $item('#btncancel').enable(); // Hide button after save
+      });
+
+    }).catch((err) => {
+      console.error("Error querying collections:", err);
+    });
+  });
+});
